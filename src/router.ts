@@ -31,8 +31,7 @@ router.get('/example-offer', async (req,res) => {
         },
         credentials: ['covid-passport'],
         qrCodeOpts: {
-            // it wont work if it is small
-            size: 400
+            size: 400 // it will not work if it is small
         }
     })
 
