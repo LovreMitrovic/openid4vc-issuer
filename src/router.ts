@@ -63,7 +63,7 @@ router.post('/token', async (req, res) => {
     const issuer = req.app.locals.issuer;
     const tokenReq = req.body as AccessTokenRequest;
     console.log('token req', JSON.stringify(tokenReq, null, 2));
-    //TODO ako ne zadovoljava formu vrati 400
+    //TODO ako ne zadovoljava formu vrati 400 pogledaj 6.3 u specifikaciji
 
     const accessTokenSignerCallback = async (jwt: Jwt): Promise<string> => {
         const symmetricKey = req.app.locals.symmetricKey;
