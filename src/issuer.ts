@@ -1,8 +1,14 @@
-import {CredentialSupportedBuilderV1_11, VcIssuer, VcIssuerBuilder} from "@sphereon/oid4vci-issuer";
+import {
+    CredentialDataSupplier, CredentialDataSupplierResult, CredentialIssuanceInput,
+    CredentialSupportedBuilderV1_11,
+    VcIssuer,
+    VcIssuerBuilder
+} from "@sphereon/oid4vci-issuer";
 import * as common from "@sphereon/oid4vci-common";
 import {importJWK, jwtVerify, decodeProtectedHeader, importPKCS8, SignJWT} from "jose";
 import {DIDDocument, UniResolver} from "@sphereon/did-uni-client";
-import {JwtVerifyResult} from "@sphereon/oid4vci-common";
+import {JwtVerifyResult, OID4VCICredentialFormat, UniformCredentialRequest} from "@sphereon/oid4vci-common";
+import jwtlib from "jsonwebtoken";
 
 const credentialSupported = new CredentialSupportedBuilderV1_11()
     .withId('covid-passport')
@@ -89,6 +95,7 @@ export const initIssuer = (url: string): VcIssuer<any> => {
                 .setIssuedAt()
                 .setIssuer(process.env.PUBLIC_KEY_DID)
                 .setSubject(jwtVerifyResult.jwt.payload.iss)
+                //.setSubject("sphereon:ssi-wallet")
                 .setExpirationTime('2h')
                 .sign(privateKey);
             //TODO OVDJE potreban proof field u credential kako bi bio verifiable za W3C VC
@@ -114,3 +121,26 @@ export const templateCredential = () => {
         }
     }
 };
+
+export const credentialDataSupplier: CredentialDataSupplier = (args) => {
+    console.log(args);
+    const payload = jwtlib.decode(args.credentialRequest.proof.jwt) as jwtlib.JwtPayload;
+    const credential = {
+        '@context': [
+            "https://www.w3.org/2018/credentials/v1",
+            "https://www.w3.org/2018/credentials/examples/v1"
+        ],
+        type: ['CovidPassportCredential','VerifiableCredential'],
+        issuer: process.env.PUBLIC_KEY_DID,
+        issuanceDate: (new Date()).toJSON(),
+        credentialSubject: {
+            //"id": "sphereon:ssi-wallet",
+            "id": payload.iss,
+            "manufacturer": "Covid Vaccines Croatia Inc.",
+        }
+    };
+    const result: CredentialDataSupplierResult = {
+        credential
+    };
+    return new Promise((resolve, reject) => resolve(result));
+}

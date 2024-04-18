@@ -23,6 +23,8 @@ app.locals.symmetricKey = process.env.SYMMETRIC_KEY;
 Generated with crypto.randomBytes(32).toString('base64')
  */
 
+
+//todo refactor
 if(externalUrl){
     const hostname = '0.0.0.0';
     app.locals.url = externalUrl;
