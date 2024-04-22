@@ -13,6 +13,8 @@ import {AssertedUniformCredentialOffer} from "@sphereon/oid4vci-common/dist/type
 import {CredentialDataSupplierInput} from "@sphereon/oid4vci-common/dist/types/Generic.types";
 import {CredentialOfferSession, IssueStatus} from "@sphereon/oid4vci-common/dist/types/StateManager.types";
 import {randomBytes} from "node:crypto";
+import {importJWK, importPKCS8, jwtVerify, KeyLike, SignJWT} from "jose";
+import {UniResolver} from "@sphereon/did-uni-client";
 const router = express.Router();
 
 
@@ -42,7 +44,7 @@ router.post('/offer', async (req,res) => {
     const offerResult = await issuer.createCredentialOfferURI({
         grants: {
             'urn:ietf:params:oauth:grant-type:pre-authorized_code': {
-                'pre-authorized_code': code,//TODO pre-auth code treba biti short-lived
+                'pre-authorized_code': code,
                 user_pin_required: false,
                 // TODO tx-code eg pin ide zasebnim kanalom i služi za obranu replay napada
             },
@@ -111,8 +113,12 @@ router.post('/token', async (req, res) => {
 
     // creating token response
     const accessTokenSignerCallback = async (jwt: Jwt): Promise<string> => {
-        const symmetricKey = req.app.locals.symmetricKey;
-        return jwtlib.sign(jwt.payload, symmetricKey);
+        const pemPrivateKey =  Buffer.from(process.env.PRIVATE_KEY , 'base64').toString('ascii');
+        const privateKey = await importPKCS8(pemPrivateKey, 'ES256');
+        return new SignJWT(jwt.payload)
+            .setProtectedHeader({alg:'ES256'})
+            .setExpirationTime('30s') // anything above 5m is considered to be long lived
+            .sign(privateKey)
     };
     try {
         const tokenRes = await createAccessTokenResponse(tokenReq, {
@@ -151,7 +157,19 @@ function validateCredentialReq(credentialReq: CredentialRequestV1_0_11) {
 
 router.post('/credential',async (req, res) => {
     const issuer = req.app.locals.issuer as VcIssuer<object>;
-    const symmetricKey = req.app.locals.symmetricKey;
+
+    // resolve issuer public key
+    let publicKey: Uint8Array | KeyLike;
+    try{
+        const resolver = new UniResolver();
+        const didResolutionResult = await resolver.resolve(process.env.PUBLIC_KEY_DID);
+        const {publicKeyJwk} = didResolutionResult.didDocument.verificationMethod[0];
+        publicKey = await importJWK(publicKeyJwk);
+    } catch (e) {
+        console.error(e);
+        res.setHeader('Cache-Control', 'no-store').status(500)
+            .json({error: "server_error"})
+    }
 
     // check if token is valid
     const authorisationHeader = req.headers["authorization"];
@@ -169,15 +187,16 @@ router.post('/credential',async (req, res) => {
     }
     try {
         const token = authorisationHeader.replace("Bearer ", "");
-        const payload = jwtlib.verify(token, symmetricKey) as jwtlib.JwtPayload;
-        console.log(payload)
+        const {payload} = await jwtVerify(token, publicKey);
+        const code = payload.preAuthorizedCode as string;
+
         if(Date.now()/1000 > payload.exp){
             throw new Error(`Token expired`);
         }
         if(payload.iss !== issuer.issuerMetadata.credential_issuer){
             throw new Error("Invalid iss in token");
         }
-        const offer = await issuer.credentialOfferSessions.get(payload.preAuthorizedCode);
+        const offer = await issuer.credentialOfferSessions.get(code);
         if(!offer){
             throw new Error("Offer does not exist means that preAuthCode is invalid");
         }
