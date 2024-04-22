@@ -181,7 +181,8 @@ router.post('/credential',async (req, res) => {
         if(!offer){
             throw new Error("Offer does not exist means that preAuthCode is invalid");
         }
-        //TODO implement preAuthCode <-> Credential connection
+        // TODO implement preAuthCode <-> Credential data connection
+        //  library offers this connection via CredentialOfferSession
 
     } catch (e){
         console.error(e)
