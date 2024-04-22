@@ -106,24 +106,9 @@ export const initIssuer = (url: string): VcIssuer<any> => {
         .build()
 }
 
-export const templateCredential = () => {
-    return {
-        '@context': [
-            "https://www.w3.org/2018/credentials/v1",
-            "https://www.w3.org/2018/credentials/examples/v1"
-        ],
-        type: ['CovidPassportCredential','VerifiableCredential'],
-        issuer: process.env.PUBLIC_KEY_DID,
-        issuanceDate: (new Date()).toJSON(),
-        credentialSubject: {
-            "id": "sphereon:ssi-wallet",
-            "manufacturer": "Covid Vaccines Croatia Inc.",
-        }
-    }
-};
-
 export const credentialDataSupplier: CredentialDataSupplier = (args) => {
     console.log(args);
+    const {credentialDataSupplierInput} = args;
     const payload = jwtlib.decode(args.credentialRequest.proof.jwt) as jwtlib.JwtPayload;
     const credential = {
         '@context': [
@@ -136,7 +121,7 @@ export const credentialDataSupplier: CredentialDataSupplier = (args) => {
         credentialSubject: {
             //"id": "sphereon:ssi-wallet",
             "id": payload.iss,
-            "manufacturer": "Covid Vaccines Croatia Inc.",
+            "manufacturer": credentialDataSupplierInput.manufacturer,
         }
     };
     const result: CredentialDataSupplierResult = {

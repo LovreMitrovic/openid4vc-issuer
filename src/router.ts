@@ -25,11 +25,19 @@ router.get('/.well-known/openid-credential-issuer', (req, res) => {
     res.json(issuer.issuerMetadata);
 });
 
-router.get('/example-offer', async (req,res) => {
+router.post('/offer', async (req,res) => {
     const issuer = req.app.locals.issuer as VcIssuer<object>;
+    const data = req.body;
+
+    if(!('manufacturer' in data) || Object.keys(data).length !== 1 ||
+        (data.manufacturer !== "Blue Inc." && data.manufacturer !== "Red Inc.")){
+            res.status(400).send('Error 400')
+            return;
+    }
 
     const codeLengthInBytes = !!parseInt(process.env.CODE_LENGTH) ? parseInt(process.env.CODE_LENGTH) : 16;
-    const code: string = randomBytes(codeLengthInBytes).toString("hex")
+    const code: string = randomBytes(codeLengthInBytes).toString("hex");
+
 
     const offerResult = await issuer.createCredentialOfferURI({
         grants: {
@@ -55,7 +63,7 @@ router.get('/example-offer', async (req,res) => {
             }
 
         },
-        //credentialDataSupplierInput?: CredentialDataSupplierInput;
+        credentialDataSupplierInput: data,
         //userPin?: string;
         status: IssueStatus.OFFER_CREATED,
         //error?: string;
