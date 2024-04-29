@@ -1,0 +1,57 @@
+button {
+    padding: 8px 20px;
+    margin: 10px;
+    font-size: 1em;
+    background-color: #4285f4;
+    color: #ffffff;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+button:hover {
+    background-color: #3272bf;
+}
+
+button:active {
+    transform: scale(0.95);
+}
+
+div, header {
+    background-color: #fff;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    padding: 20px;
+    margin: 20px auto;
+    width: 600px;
+}
+
+header:hover {
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+    transform: translateY(-2px);
+    transition: all 0.3s ease;
+}
+
+p {
+    overflow: auto;
+}
+
+a:has(header), a:has(header):visited, a:has(header):hover, a:has(header):active {
+    text-decoration: none;
+    color: inherit;
+}
+
+fieldset {
+    display: flex;
+    flex-direction: column;
+}
+
+input[type="radio"] {
+    margin-top: -1px;
+    vertical-align: middle;
+}
+
+label {
+    font-size: 1.25rem;
+}

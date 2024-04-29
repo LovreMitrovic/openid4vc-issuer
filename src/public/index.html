@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Issuer</title>
+    <link rel="stylesheet" href="/index.css">
+</head>
+<body>
+<main>
+    <header>
+        <h1>Issuer</h1>
+    </header>
+    <div>
+        <h2>Create credential offer</h2>
+        <p>Use form below to create credential offer for COVID passport
+            which will contain manufacturer of COVID vaccine
+            and last 2h.
+        </p>
+        <form action="/offer" method="post">
+            <fieldset>
+                <legend>Select manufacturer:</legend>
+                <label>
+                    <input type="radio" id="blue" name="manufacturer" value="Blue Inc." checked>
+                    Blue Inc.
+                </label>
+                <label>
+                    <input type="radio" id="red" name="manufacturer" value="Red Inc.">
+                    Red Inc.
+                </label>
+            </fieldset>
+            <button type="submit">Create offer</button>
+        </form>
+    </div>
+    <div>
+        <h2>Metadata</h2>
+        <p>Check <a href="/.well-known/openid-credential-issuer">metadata</a></p>
+    </div>
+</main>
+</body>
+</html>

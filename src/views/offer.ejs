@@ -2,15 +2,22 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>EJS Is Fun</title>
+    <title>Credential offer</title>
+    <link rel="stylesheet" href="/index.css">
 </head>
 <body>
-<h1>Example offer</h1>
-<br>
-<h2>URI</h2>
-<p><%=uri%></p>
-<br>
-<h2>Qr code</h2>
-<img src="<%=qrCodeDataUri%>">
+    <a href="/">
+        <header>
+            <h1>Issuer</h1>
+        </header>
+    </a>
+    <div>
+        <h2>Created credential offer</h2>
+        <h3>Qr code</h3>
+        <img src="<%=qrCodeDataUri%>">
+        <h3>URI</h3>
+        <p><%=uri%></p>
+    </div>
+
 </body>
 </html>
