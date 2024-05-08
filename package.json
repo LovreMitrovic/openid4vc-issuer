@@ -4,7 +4,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "cp -r ./src/views/ ./dist/ && cp -r ./src/public/ ./dist/ && tsc",
+    "build": "mkdir dist && cp -r ./src/views/ ./dist/ && cp -r ./src/public/ ./dist/ && tsc",
     "start": "node ./dist/app.js"
   },
   "keywords": [],
