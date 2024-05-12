@@ -40,19 +40,24 @@ router.post('/offer', async (req,res) => {
     const codeLengthInBytes = !!parseInt(process.env.CODE_LENGTH) ? parseInt(process.env.CODE_LENGTH) : 16;
     const code: string = randomBytes(codeLengthInBytes).toString("hex");
 
+    const pinLength = 4;
+    const pad: string = "0".repeat(pinLength);
+    let pin: string = (randomBytes(32).readUInt32BE() % 10**pinLength).toString();
+    pin = pad.substring(0, pad.length - pin.length) + pin;
 
     const offerResult = await issuer.createCredentialOfferURI({
         grants: {
             'urn:ietf:params:oauth:grant-type:pre-authorized_code': {
                 'pre-authorized_code': code,
-                user_pin_required: false,
+                user_pin_required: true,
                 // TODO tx-code eg pin ide zasebnim kanalom i služi za obranu replay napada
             },
         },
         credentials: ['covid-passport'],
         qrCodeOpts: {
             size: 400 // it will not work if it is small
-        }
+        },
+        pinLength: pinLength
     })
 
     const session: CredentialOfferSession = {
@@ -66,7 +71,7 @@ router.post('/offer', async (req,res) => {
 
         },
         credentialDataSupplierInput: data,
-        //userPin?: string;
+        userPin: pin,    // only when pin is required
         status: IssueStatus.OFFER_CREATED,
         //error?: string;
         lastUpdatedAt: Date.now(),
@@ -74,9 +79,10 @@ router.post('/offer', async (req,res) => {
         preAuthorizedCode: code
     };
     await issuer.credentialOfferSessions.set(code,session);
+    //todo pošalji pin emailom
 
     //res.json(offerResult);
-    res.render('offer',offerResult)
+    res.render('offer',{...offerResult, pin})
 })
 
 router.post('/token', async (req, res) => {
@@ -86,7 +92,7 @@ router.post('/token', async (req, res) => {
 
     // error cases
     if(!("grant_type" in tokenReq) ||
-        "grant_type" in tokenReq && tokenReq.grant_type == GrantTypes.PRE_AUTHORIZED_CODE && 'tx_code' in tokenReq ||
+        "grant_type" in tokenReq && tokenReq.grant_type == GrantTypes.PRE_AUTHORIZED_CODE && !('user_pin' in tokenReq) ||
         "grant_type" in tokenReq && tokenReq.grant_type == GrantTypes.PRE_AUTHORIZED_CODE && !('pre-authorized_code' in tokenReq)){
         res.setHeader('Cache-Control','no-store').status(400)
             .json({error:"invalid_request"})
@@ -104,8 +110,8 @@ router.post('/token', async (req, res) => {
     }
     const expiresIn = !!parseInt(process.env.CODE_EXPIRES_IN) ? parseInt(process.env.CODE_EXPIRES_IN) : 300;
     if(!(await issuer.credentialOfferSessions.has(tokenReq["pre-authorized_code"])) ||
-        (await issuer.credentialOfferSessions.get(tokenReq["pre-authorized_code"])).createdAt
-        + expiresIn > Date.now()){
+        (await issuer.credentialOfferSessions.get(tokenReq["pre-authorized_code"])).createdAt + expiresIn > Date.now() ||
+        (await issuer.credentialOfferSessions.get(tokenReq["pre-authorized_code"])).userPin !== tokenReq.user_pin){
         res.setHeader('Cache-Control','no-store').status(400)
             .json({error:"invalid_grant"})
         return;
