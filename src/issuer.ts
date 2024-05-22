@@ -24,7 +24,6 @@ const credentialSupported = new CredentialSupportedBuilderV1_11()
 
 export const initIssuer = (url: string): VcIssuer<any> => {
     return new VcIssuerBuilder()
-        .withUserPinRequired(false)
         .withAuthorizationServer(url)
         .withCredentialEndpoint(`${url}/credential`)
         .withCredentialIssuer(url)

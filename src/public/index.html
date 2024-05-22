@@ -11,12 +11,12 @@
         <h1>Issuer</h1>
     </header>
     <div>
-        <h2>Create credential offer</h2>
+        <h2>Create credential offer (Pre Auth)</h2>
         <p>Use form below to create credential offer for COVID passport
             which will contain manufacturer of COVID vaccine
-            and last 2h.
+            and last 2h. Select desired manufacturer.
         </p>
-        <form action="/offer" method="post">
+        <form action="/offer-preauth" method="post">
             <fieldset>
                 <legend>Select manufacturer:</legend>
                 <label>
@@ -28,6 +28,18 @@
                     Red Inc.
                 </label>
             </fieldset>
+            <button type="submit">Create offer</button>
+        </form>
+    </div>
+    <div>
+        <h2>Create credential offer (Auth)</h2>
+        <p>Use form below to create credential offer for COVID passport
+            which will contain manufacturer of COVID vaccine
+            and last 2h. Manufacturer will be provided based
+            on existing data. User with username:user and
+            password:user will ge Blue Inc. manufacturer.
+        </p>
+        <form action="/offer-auth" method="post">
             <button type="submit">Create offer</button>
         </form>
     </div>

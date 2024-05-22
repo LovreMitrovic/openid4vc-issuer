@@ -1,13 +1,13 @@
-import express, {Request, Response, Router} from 'express';
+import express, {request, Request, Response, Router} from 'express';
 import {initIssuer, credentialDataSupplier} from "./issuer";
 import {
-    AccessTokenRequest,
+    AccessTokenRequest, AuthorizationRequest,
     CredentialRequestV1_0_11,
     generateRandomString,
     GrantTypes,
-    Jwt
+    Jwt, PRE_AUTH_CODE_LITERAL, TokenError
 } from "@sphereon/oid4vci-common";
-import {createAccessTokenResponse, VcIssuer} from "@sphereon/oid4vci-issuer";
+import {VcIssuer} from "@sphereon/oid4vci-issuer";
 import jwtlib from "jsonwebtoken";
 import {AssertedUniformCredentialOffer} from "@sphereon/oid4vci-common/dist/types/CredentialIssuance.types";
 import {CredentialDataSupplierInput} from "@sphereon/oid4vci-common/dist/types/Generic.types";
@@ -15,6 +15,7 @@ import {CredentialOfferSession, IssueStatus} from "@sphereon/oid4vci-common/dist
 import {randomBytes} from "node:crypto";
 import {importJWK, importPKCS8, jwtVerify, KeyLike, SignJWT} from "jose";
 import {UniResolver} from "@sphereon/did-uni-client";
+import {assertValidAccessTokenRequest, createAccessTokenResponse} from "./utils/token";
 const router = express.Router();
 
 
@@ -24,10 +25,11 @@ router.get('/', (req: Request, res: Response) => {
 
 router.get('/.well-known/openid-credential-issuer', (req, res) => {
     const issuer = req.app.locals.issuer;
-    res.json(issuer.issuerMetadata);
+    const url = req.app.locals.url;
+    res.json({...issuer.issuerMetadata, authorization_endpoint: `${url}/authorize`});
 });
 
-router.post('/offer', async (req,res) => {
+router.post('/offer-preauth', async (req,res) => {
     const issuer = req.app.locals.issuer as VcIssuer<object>;
     const data = req.body;
 
@@ -45,14 +47,16 @@ router.post('/offer', async (req,res) => {
     let pin: string = (randomBytes(32).readUInt32BE() % 10**pinLength).toString();
     pin = pad.substring(0, pad.length - pin.length) + pin;
 
-    const offerResult = await issuer.createCredentialOfferURI({
-        grants: {
-            'urn:ietf:params:oauth:grant-type:pre-authorized_code': {
-                'pre-authorized_code': code,
-                user_pin_required: true,
-                // TODO tx-code eg pin ide zasebnim kanalom i služi za obranu replay napada
-            },
+    const grants = {
+        'urn:ietf:params:oauth:grant-type:pre-authorized_code': {
+            'pre-authorized_code': code,
+            user_pin_required: true,
+            // TODO tx-code eg pin ide zasebnim kanalom i služi za obranu replay napada
         },
+    };
+
+    const offerResult = await issuer.createCredentialOfferURI({
+        grants,
         credentials: ['covid-passport'],
         qrCodeOpts: {
             size: 400 // it will not work if it is small
@@ -66,9 +70,9 @@ router.post('/offer', async (req,res) => {
         credentialOffer: {
             credential_offer: {
                 credential_issuer: req.app.locals.issuer.credential_issuer,
-                credentials: ['jwt_vc']
+                credentials: ['jwt_vc'],
+                grants
             }
-
         },
         credentialDataSupplierInput: data,
         userPin: pin,    // only when pin is required
@@ -85,37 +89,99 @@ router.post('/offer', async (req,res) => {
     res.render('offer',{...offerResult, pin})
 })
 
+router.post('/offer-auth', async (req,res) => {
+    const issuer = req.app.locals.issuer as VcIssuer<object>;
+
+    const issuerState: string = randomBytes(32).toString("hex");
+
+    const grants = {
+        authorization_code: {
+            issuer_state: issuerState
+        }
+    };
+
+    const offerResult = await issuer.createCredentialOfferURI({
+        grants,
+        credentials: ['covid-passport'],
+        qrCodeOpts: {
+            size: 400 // it will not work if it is small
+        }
+    })
+
+    const session: CredentialOfferSession = {
+        createdAt: Date.now(),
+        //clientId?: string;
+        credentialOffer: {
+            credential_offer: {
+                credential_issuer: req.app.locals.issuer.credential_issuer,
+                credentials: ['jwt_vc'],
+                grants
+            }
+
+        },
+        //credentialDataSupplierInput: data will be supplied when user is auth
+        //userPin: pin,    // only when pin is required
+        status: IssueStatus.OFFER_CREATED,
+        //error?: string;
+        lastUpdatedAt: Date.now(),
+        issuerState: issuerState,
+        //preAuthorizedCode: code
+    };
+    await issuer.credentialOfferSessions.set(issuerState,session);
+
+    res.render('offer',offerResult);
+})
+
+/*
+    This is out of scope of specs OID4VCI, OID Connect and OAuth 2.0
+    Implementation using hardcoded username and password and
+    use of HTTP Basic is chosen because of simplicity.
+ */
+router.get('/authorize', async (req, res) => {
+    const issuer = req.app.locals.issuer as VcIssuer<object>;
+    const url = req.app.locals.url as string;
+    const authReq = req.query as unknown as AuthorizationRequest;
+
+    // invalid_request rfc7636
+    if(!authReq["code_challenge"] &&
+        !authReq["code_challenge_method"] &&
+        authReq["code_challenge_method"] !== "S256"){
+        res.status(400).json({error: "invalid_request"});
+        return;
+    }
+
+    const b64auth = (req.headers.authorization || '').split(' ')[1] || ''
+    const [login, password] = Buffer.from(b64auth, 'base64').toString().split(':')
+    if(login != 'user' || password != 'user'){
+        res.setHeader('WWW-Authenticate', 'Basic realm="Issuer"')
+            .sendStatus(401);
+        return;
+    }
+
+    const data = {manufacturer:"Blue Inc."};
+
+    const codeLengthInBytes = !!parseInt(process.env.CODE_LENGTH) ? parseInt(process.env.CODE_LENGTH) : 16;
+    const code: string = randomBytes(codeLengthInBytes).toString("hex");
+
+    let offerSession = await issuer.credentialOfferSessions.get(authReq.issuer_state);
+    await issuer.credentialOfferSessions.delete(authReq.issuer_state);
+    //await issuer.credentialOfferSessions.set(code, {...offerSession, credentialDataSupplierInput: data});
+    await issuer.credentialOfferSessions.set(code, {...offerSession,
+        credentialDataSupplierInput: data,
+        // @ts-ignore
+        code_challange: authReq.code_challenge,
+        code_challenge_method:authReq.code_challenge_method,
+        code
+    });
+
+
+    res.redirect(`${authReq.redirect_uri}/?code=${code}`);
+})
+
 router.post('/token', async (req, res) => {
     const issuer = req.app.locals.issuer as VcIssuer<object>;
     const tokenReq = req.body as AccessTokenRequest;
     console.log('token req', JSON.stringify(tokenReq, null, 2));
-
-    // error cases
-    if(!("grant_type" in tokenReq) ||
-        "grant_type" in tokenReq && tokenReq.grant_type == GrantTypes.PRE_AUTHORIZED_CODE && !('user_pin' in tokenReq) ||
-        "grant_type" in tokenReq && tokenReq.grant_type == GrantTypes.PRE_AUTHORIZED_CODE && !('pre-authorized_code' in tokenReq)){
-        res.setHeader('Cache-Control','no-store').status(400)
-            .json({error:"invalid_request"})
-        return;
-    }
-    if(tokenReq.grant_type != GrantTypes.PRE_AUTHORIZED_CODE){
-        res.setHeader('Cache-Control','no-store').status(400)
-            .json({error:"unsupported_grant_type"}) // look at RFC 6749 OAuth 2.0
-        return;
-    }
-    if(!('client_id' in tokenReq) /*&& usesPreAuthCodeFlow*/){
-        res.setHeader('Cache-Control','no-store').status(400)
-            .json({error:"invalid_client"})
-        return;
-    }
-    const expiresIn = !!parseInt(process.env.CODE_EXPIRES_IN) ? parseInt(process.env.CODE_EXPIRES_IN) : 300;
-    if(!(await issuer.credentialOfferSessions.has(tokenReq["pre-authorized_code"])) ||
-        (await issuer.credentialOfferSessions.get(tokenReq["pre-authorized_code"])).createdAt + expiresIn > Date.now() ||
-        (await issuer.credentialOfferSessions.get(tokenReq["pre-authorized_code"])).userPin !== tokenReq.user_pin){
-        res.setHeader('Cache-Control','no-store').status(400)
-            .json({error:"invalid_grant"})
-        return;
-    }
 
     // creating token response
     const accessTokenSignerCallback = async (jwt: Jwt): Promise<string> => {
@@ -127,10 +193,13 @@ router.post('/token', async (req, res) => {
             .sign(privateKey)
     };
     try {
+        await assertValidAccessTokenRequest(tokenReq, {
+            credentialOfferSessions: issuer.credentialOfferSessions,
+            expirationDuration: 10 * 60 * 1000
+        });
         const tokenRes = await createAccessTokenResponse(tokenReq, {
             credentialOfferSessions: issuer.credentialOfferSessions,
             cNonces: issuer.cNonces,
-            //cNonce: 'c6c651e0-58a1-4299-a79a-f8841afe4a89', it defaults to v4()
             cNonceExpiresIn: issuer.cNonceExpiresIn,
             tokenExpiresIn: 10 * 60 * 1000,
             accessTokenSignerCallback,
@@ -139,8 +208,13 @@ router.post('/token', async (req, res) => {
         });
         console.log('token res', JSON.stringify(tokenRes, null, 2));
         res.setHeader('Cache-Control', 'no-store').json(tokenRes);
-    } catch(e){
+    } catch (e){
         console.error(e);
+        if(e instanceof TokenError){
+            res.setHeader('Cache-Control','no-store').status(e.statusCode)
+                .json({error:e.responseError});
+            return;
+        }
         res.setHeader('Cache-Control','no-store').status(500)
             .json({error:"server_error"});
     }
@@ -194,7 +268,9 @@ router.post('/credential',async (req, res) => {
     try {
         const token = authorisationHeader.replace("Bearer ", "");
         const {payload} = await jwtVerify(token, publicKey);
-        const code = payload.preAuthorizedCode as string;
+        const code = !!payload.preAuthorizedCode ?
+            payload.preAuthorizedCode as string :
+            payload.code as string;
 
         if(Date.now()/1000 > payload.exp){
             throw new Error(`Token expired`);
@@ -204,10 +280,8 @@ router.post('/credential',async (req, res) => {
         }
         const offer = await issuer.credentialOfferSessions.get(code);
         if(!offer){
-            throw new Error("Offer does not exist means that preAuthCode is invalid");
+            throw new Error("Offer does not exist means that preAuthCode or code is invalid");
         }
-        // TODO implement preAuthCode <-> Credential data connection
-        //  library offers this connection via CredentialOfferSession
 
     } catch (e){
         console.error(e)
