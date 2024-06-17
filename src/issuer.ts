@@ -9,6 +9,7 @@ import {importJWK, jwtVerify, decodeProtectedHeader, importPKCS8, SignJWT} from 
 import {DIDDocument, UniResolver} from "@sphereon/did-uni-client";
 import {JwtVerifyResult, OID4VCICredentialFormat, UniformCredentialRequest} from "@sphereon/oid4vci-common";
 import jwtlib from "jsonwebtoken";
+import {IIssuer, ICredentialSubject} from "@sphereon/ssi-types/dist/types/w3c-vc";
 
 const credentialSupported = new CredentialSupportedBuilderV1_11()
     .withId('covid-passport')
@@ -76,28 +77,23 @@ export const initIssuer = (url: string): VcIssuer<any> => {
             } = opts;
             const payload = {
                 vc: credential,
-                iss: credential.issuer,
-                sub: jwtVerifyResult.jwt.payload.iss
             }
             const header = {
-                alg: jwtVerifyResult.alg,
+                alg: "ES256",
                 typ: "JWT"
             }
 
             const pemPrivateKey =  Buffer.from(process.env.PRIVATE_KEY , 'base64').toString('ascii');
             const privateKey = await importPKCS8(pemPrivateKey, 'ES256');
 
-
             // @ts-ignore
             const credentialJwt: string = await new SignJWT(payload)
-                .setProtectedHeader({alg: 'ES256'})
-                .setIssuedAt()
-                .setIssuer(process.env.PUBLIC_KEY_DID)
-                .setSubject(jwtVerifyResult.jwt.payload.iss)
-                //.setSubject("sphereon:ssi-wallet")
-                .setExpirationTime('2h')
+                .setProtectedHeader(header)
+                .setIssuer(credential.issuer as string)
+                .setNotBefore( (new Date(credential.issuanceDate as string)).getTime() )
+                .setExpirationTime( (new Date(credential.expirationDate as string)).getTime() )
+                .setSubject((credential.credentialSubject as ICredentialSubject).id)
                 .sign(privateKey);
-            //TODO OVDJE potreban proof field u credential kako bi bio verifiable za W3C VC
             return new Promise((resolve, reject) => {
                 resolve(credentialJwt)
             })
@@ -109,16 +105,17 @@ export const credentialDataSupplier: CredentialDataSupplier = (args) => {
     console.log(args);
     const {credentialDataSupplierInput} = args;
     const payload = jwtlib.decode(args.credentialRequest.proof.jwt) as jwtlib.JwtPayload;
+    const startTime = new Date();
+    const endTime = new Date(startTime.getTime() + 2*60*60*1000); // 2 hours from startTime
     const credential = {
         '@context': [
-            "https://www.w3.org/2018/credentials/v1",
-            "https://www.w3.org/2018/credentials/examples/v1"
+            "https://www.w3.org/2018/credentials/v1"
         ],
-        type: ['CovidPassportCredential','VerifiableCredential'],
+        type: ['VerifiableCredential'],
         issuer: process.env.PUBLIC_KEY_DID,
-        issuanceDate: (new Date()).toJSON(),
+        issuanceDate: startTime.toJSON(),
+        expirationDate: endTime.toJSON(),
         credentialSubject: {
-            //"id": "sphereon:ssi-wallet",
             "id": payload.iss,
             "manufacturer": credentialDataSupplierInput.manufacturer,
         }
