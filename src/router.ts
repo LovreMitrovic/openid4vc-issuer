@@ -141,6 +141,7 @@ router.get('/authorize', async (req, res) => {
     const issuer = req.app.locals.issuer as VcIssuer<object>;
     const url = req.app.locals.url as string;
     const authReq = req.query as unknown as AuthorizationRequest;
+    console.log('auth req', JSON.stringify(authReq, null, 2));
 
     // invalid_request rfc7636
     if(!authReq["code_challenge"] &&
@@ -174,7 +175,7 @@ router.get('/authorize', async (req, res) => {
         code
     });
 
-
+    console.log(`redirect with code ${code}`)
     res.redirect(`${authReq.redirect_uri}/?code=${code}`);
 })
 

@@ -16,7 +16,7 @@ const credentialSupported = new CredentialSupportedBuilderV1_11()
     .withFormat('jwt_vc_json')
     //.withCryptographicBindingMethod('jwk')
     //.withCryptographicSuitesSupported('jwk_vc')
-    .withTypes(["VerifiableCredential", "CovidPassportCredential"])
+    .withTypes(["VerifiableCredential"])
     .withCredentialSupportedDisplay({
         name:"Covid Passort",
         locale:"en-US"
@@ -85,13 +85,12 @@ export const initIssuer = (url: string): VcIssuer<any> => {
 
             const pemPrivateKey =  Buffer.from(process.env.PRIVATE_KEY , 'base64').toString('ascii');
             const privateKey = await importPKCS8(pemPrivateKey, 'ES256');
-
             // @ts-ignore
             const credentialJwt: string = await new SignJWT(payload)
                 .setProtectedHeader(header)
                 .setIssuer(credential.issuer as string)
-                .setNotBefore( (new Date(credential.issuanceDate as string)).getTime() )
-                .setExpirationTime( (new Date(credential.expirationDate as string)).getTime() )
+                .setNotBefore( (new Date(credential.issuanceDate as string)).getTime()/1000 )
+                .setExpirationTime( (new Date(credential.expirationDate as string)).getTime()/1000 )
                 .setSubject((credential.credentialSubject as ICredentialSubject).id)
                 .sign(privateKey);
             return new Promise((resolve, reject) => {
