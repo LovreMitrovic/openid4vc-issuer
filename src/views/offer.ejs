@@ -16,10 +16,6 @@
         <h3>Qr code</h3>
         <img src="<%=qrCodeDataUri%>">
         <p><a href="<%=uri%>">Open from wallet</a></p>
-        <%# code down is for preauth code flow #%>
-        <%if(typeof pin !== 'undefined'){%>
-        <p>User pin is <%=pin%></p>
-        <%}%>
         <h3>URI</h3>
         <p><%=uri%></p>
     </div>

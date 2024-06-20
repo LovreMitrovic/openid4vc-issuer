@@ -16,6 +16,8 @@ import {randomBytes} from "node:crypto";
 import {importJWK, importPKCS8, jwtVerify, KeyLike, SignJWT} from "jose";
 import {UniResolver} from "@sphereon/did-uni-client";
 import {assertValidAccessTokenRequest, createAccessTokenResponse} from "./utils/token";
+import {sendEmail} from "./service/sendEmail";
+import validator from "validator";
 const router = express.Router();
 
 
@@ -33,7 +35,10 @@ router.post('/offer-preauth', async (req,res) => {
     const issuer = req.app.locals.issuer as VcIssuer<object>;
     const data = req.body;
 
-    if(!('manufacturer' in data) || Object.keys(data).length !== 1 ||
+    if(!('manufacturer' in data) ||
+        !('email' in data) ||
+        Object.keys(data).length !== 2 ||
+        !validator.isEmail(data.email) ||
         (data.manufacturer !== "Blue Inc." && data.manufacturer !== "Red Inc.")){
             res.status(400).send('Error 400')
             return;
@@ -84,9 +89,15 @@ router.post('/offer-preauth', async (req,res) => {
     };
     await issuer.credentialOfferSessions.set(code,session);
     //todo pošalji pin emailom
+    try{
+        await sendEmail(data.email, pin);
+    } catch (e) {
+        res.status(500).send(`Email could not be sent!`);
+        console.error(e);
+        return;
+    }
 
-    //res.json(offerResult);
-    res.render('offer',{...offerResult, pin})
+    res.render('offer',offerResult);
 })
 
 router.post('/offer-auth', async (req,res) => {
