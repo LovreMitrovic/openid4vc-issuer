@@ -1,0 +1,8 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Mitrović"
+  given-names: "Lovre"
+title: "Implementation of issuer using OID4VC protocol"
+date-released: 2024-06-22
+url: "https://github.com/LovreMitrovic/openid4vc-issuer"
