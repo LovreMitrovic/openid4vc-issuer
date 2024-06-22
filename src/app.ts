@@ -2,8 +2,7 @@ import dotenv from 'dotenv';
 import express from 'express';
 import indexRouter from './router';
 import path from "node:path";
-import {initIssuer} from "./issuer";
-import {VcIssuer} from "@sphereon/oid4vci-issuer";
+import {initIssuer} from "./service/issuer";
 dotenv.config();
 
 const externalUrl = process.env.RENDER_EXTERNAL_URL;
@@ -20,12 +19,7 @@ app.set('views', path.join(__dirname, 'views'))
 app.use('/', indexRouter);
 
 app.locals.symmetricKey = process.env.SYMMETRIC_KEY;
-/*
-Generated with crypto.randomBytes(32).toString('base64')
- */
 
-
-//todo refactor
 if(externalUrl){
     const hostname = '0.0.0.0';
     app.locals.url = externalUrl;
