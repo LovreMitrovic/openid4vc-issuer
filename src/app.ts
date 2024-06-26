@@ -6,7 +6,7 @@ import {initIssuer} from "./service/issuer";
 dotenv.config();
 
 const externalUrl = process.env.RENDER_EXTERNAL_URL;
-const port = /*externalUrl &&*/ process.env.PORT ? parseInt(process.env.PORT) : 3000;
+const port = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 
 const app = express();
 

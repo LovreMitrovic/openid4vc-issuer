@@ -1,7 +1,6 @@
 const fs = require('fs');
 const jose = require('jose');
 const path = require('path');
-const crypto = require('crypto');
 const {base64ToHexString} = require("@sphereon/did-auth-siop");
 
 const generateKeys = async (alg) => {
@@ -12,7 +11,6 @@ const generateKeys = async (alg) => {
     const privatePemB64 = Buffer.from(privatePem).toString('base64');
     const publicJwk = JSON.stringify(await jose.exportJWK(publicKey),null,2);
     const privateJwk = JSON.stringify(await jose.exportJWK(privateKey),null,2);
-    const symmetricKey = crypto.randomBytes(32).toString('base64');
     const privateKeyHex = base64ToHexString((await jose.exportJWK(privateKey)).d, 'base64url');
 
     const dir = './keys';
@@ -32,10 +30,6 @@ const generateKeys = async (alg) => {
      */
     fs.writeFileSync(path.join(process.cwd(), `./keys/public.jwk.json`),publicJwk);
     fs.writeFileSync(path.join(process.cwd(), `./keys/private.jwk.json`),privateJwk);
-    /*
-        Put in ENV variable SYMMETRIC_KEY
-     */
-    fs.writeFileSync(path.join(process.cwd(), `./keys/symmetric-bytes-b64.txt`),symmetricKey);
     /*
         Put in ENV variable PRIVATE_KEY_HEX
      */
